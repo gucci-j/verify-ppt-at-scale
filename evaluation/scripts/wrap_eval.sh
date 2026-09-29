@@ -24,10 +24,10 @@ checkpoint_steps=(
 for step in "${checkpoint_steps[@]}"; do
     checkpoint_path="$1/${step}"
     checkpoint_path_hf=${checkpoint_path}_hf
-    chmod +x /path/to/verify-ppt/evaluation/scripts/eval.sh
+    chmod +x /path/to/verify-ppt-at-scale/evaluation/scripts/eval.sh
     singularity exec \
         -B $HOME:$HOME \
         --nv /path/to/containers/vllm_26.01-py3.sif \
-        /path/to/verify-ppt/evaluation/scripts/eval.sh $checkpoint_path_hf
+        /path/to/verify-ppt-at-scale/evaluation/scripts/eval.sh $checkpoint_path_hf
 
 done

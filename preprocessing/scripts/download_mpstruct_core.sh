@@ -14,7 +14,7 @@ CACHE_DIR=${CACHE_DIR:-/path/to/cache}
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_mpstruct_core.py \
     --output-root "" \
     --logging-root "" \

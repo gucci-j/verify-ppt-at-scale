@@ -54,7 +54,7 @@ echo "OMP_NUM_THREADS=${OMP_NUM_THREADS} (physical_cores=${physical_cores}, npro
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Change to the directory containing the training script
-cd /path/to/verify-ppt/external/nanotron
+cd /path/to/verify-ppt-at-scale/external/nanotron
 
 # Run the training script
 python -m torch.distributed.run \
@@ -63,4 +63,4 @@ python -m torch.distributed.run \
     --rdzv_id="${SLURM_JOB_ID}" \
     --rdzv_backend=c10d \
     --rdzv_endpoint="${master_addr}:${master_port}" \
-    run_train.py --config-file /path/to/verify-ppt/training/configs/ppt_olmo3_1b_v2.yaml
+    run_train.py --config-file /path/to/verify-ppt-at-scale/training/configs/ppt_olmo3_1b_v2.yaml

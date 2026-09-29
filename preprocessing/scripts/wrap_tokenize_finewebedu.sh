@@ -27,7 +27,7 @@ export LOCAL_RANK_OFFSET=$(( ARRAY_TASK_ID * LOCAL_TASKS ))
 echo "[array] task ${ARRAY_TASK_ID}/${ARRAY_COUNT}: ranks [${LOCAL_RANK_OFFSET}, $((LOCAL_RANK_OFFSET + LOCAL_TASKS)))"
 # -----------------------------------------------------------------------------
 
-SCRIPT_DIR="/path/to/verify-ppt/preprocessing/scripts"
+SCRIPT_DIR="/path/to/verify-ppt-at-scale/preprocessing/scripts"
 PREPROCESS_SCRIPT="${SCRIPT_DIR}/tokenize_finewebedu.sh"
 CONTAINER=${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}
 

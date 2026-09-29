@@ -20,10 +20,10 @@ LOCAL_TASKS="${LOCAL_TASKS:-${TASKS}}"
 LOCAL_RANK_OFFSET="${LOCAL_RANK_OFFSET:-0}"
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_finewebedu.py \
     --output-root  "/path/to/data/finewebedu" \
-    --logging-root "/path/to/verify-ppt/preprocessing/logs" \
+    --logging-root "/path/to/verify-ppt-at-scale/preprocessing/logs" \
     --cache-root   "/path/to/cache" \
     --workers 8 \
     --dclm-alias "${DCLM_ALIAS:-dclm_marin_103b}" \

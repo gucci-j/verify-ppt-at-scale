@@ -14,7 +14,7 @@ export TMPDIR=/tmp
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_c4.py \
     --output-root "" \
     --logging-root "" \

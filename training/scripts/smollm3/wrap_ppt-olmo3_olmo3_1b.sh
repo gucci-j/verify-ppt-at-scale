@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="/path/to/verify-ppt/training/scripts/smollm3"
+SCRIPT_DIR="/path/to/verify-ppt-at-scale/training/scripts/smollm3"
 TRAIN_SCRIPT="${SCRIPT_DIR}/ppt-olmo3_olmo3_1b.sh"
 CONTAINER=${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}
 chmod +x "${TRAIN_SCRIPT}"

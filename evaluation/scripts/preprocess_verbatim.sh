@@ -12,7 +12,7 @@ export TMPDIR=/tmp
 source /path/to/venv/verify-ppt_eval/bin/activate
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/evaluation/src/verbatim
+cd /path/to/verify-ppt-at-scale/evaluation/src/verbatim
 python preprocess_verbatim.py \
-    --input-dir /path/to/verify-ppt/external/verbatim-memory-in-NLMs/data/rnn_input_files \
+    --input-dir /path/to/verify-ppt-at-scale/external/verbatim-memory-in-NLMs/data/rnn_input_files \
     --output-dir /path/to/data/verbatim

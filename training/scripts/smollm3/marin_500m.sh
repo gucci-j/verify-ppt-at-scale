@@ -29,7 +29,7 @@ GPUS_PER_NODE="${SLURM_GPUS_ON_NODE:-4}"
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Change to the directory containing the training script
-cd /path/to/verify-ppt/external/nanotron
+cd /path/to/verify-ppt-at-scale/external/nanotron
 
 # Run the training script
 python -m torch.distributed.run \
@@ -39,4 +39,4 @@ python -m torch.distributed.run \
     --rdzv_id="${SLURM_JOB_ID}" \
     --rdzv_backend=c10d \
     --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
-    run_train.py --config-file /path/to/verify-ppt/training/configs/marin_500m.yaml
+    run_train.py --config-file /path/to/verify-ppt-at-scale/training/configs/marin_500m.yaml

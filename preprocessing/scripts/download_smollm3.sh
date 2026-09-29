@@ -16,7 +16,7 @@ export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-your_aws_secret_access_ke
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_smollm3.py \
     --output-root "" \
     --logging-root "" \

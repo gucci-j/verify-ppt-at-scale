@@ -27,7 +27,7 @@ mkdir -p $output_dir
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Convert the Nanotron checkpoint to HuggingFace format
-cd /path/to/verify-ppt/external/nanotron/examples/smollm3
+cd /path/to/verify-ppt-at-scale/external/nanotron/examples/smollm3
 
 python -m torch.distributed.run \
     --nnodes=1 \

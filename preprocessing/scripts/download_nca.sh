@@ -13,7 +13,7 @@ export TMPDIR=/tmp
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Run the GPU-accelerated generation script to produce raw NCA text file and cache tokenizer
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_nca.py \
     --output-root "" \
     --logging-root "" \

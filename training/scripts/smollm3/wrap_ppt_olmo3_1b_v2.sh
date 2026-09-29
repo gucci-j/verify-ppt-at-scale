@@ -7,7 +7,7 @@
 #SBATCH --time=24:00:00
 set -euo pipefail
 
-SCRIPT_DIR="/path/to/verify-ppt/training/scripts/smollm3"
+SCRIPT_DIR="/path/to/verify-ppt-at-scale/training/scripts/smollm3"
 TRAIN_SCRIPT="${SCRIPT_DIR}/ppt_olmo3_1b_v2.sh"
 CONTAINER=${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}
 chmod +x "${TRAIN_SCRIPT}"

@@ -3,6 +3,8 @@ Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior
 
 This repository contains the code for the paper "Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior".
 
+We also provide the pre-processed datasets and the trained models on Hugging Face Hub. Please refer to the ["Pre-processing"](#2-pre-processing) and ["Artifacts"](#artifacts) sections below for more details.
+
 <table align="center">
   <tr>
     <td align="center" valign="middle" width="50%">
@@ -33,7 +35,7 @@ This repository contains the code for the paper "Synthetic Pre-pretraining Survi
 > [!Important]  
 > In the following, you will see the following placeholder or example paths. Please modify them to the actual paths on your system before running the commands.
 > * `/path/to/containers`: The directory where you want to store the Singularity/Apptainer container.
-> * `/path/to/verify-ppt`: The directory where you cloned the `verify-ppt` repository.
+> * `/path/to/verify-ppt-at-scale`: The directory where you cloned the `verify-ppt-at-scale` repository.
 > * `/path/to/venv`: The directory where you want to create the virtual environments for pre-pre-training/pre-training and evaluation.
 > * `/path/to/data`: The directory where you want to store the preprocessed data.
 > * `/etc/ssl/certs:/etc/ssl/certs` & `/etc/pki/ca-trust:/etc/pki/ca-trust`: While these are not strictly necessary, they are recommended to avoid SSL certificate verification issues when downloading datasets from Hugging Face or other sources.
@@ -48,8 +50,8 @@ This repository contains the code for the paper "Synthetic Pre-pretraining Survi
 First, please clone the repository to your local machine or server. You can either use `git clone` or download the zip file from the repository.
 
 ```bash
-git clone verify-ppt-at-scale
-cd verify-ppt
+git clone https://github.com/gucci-j/verify-ppt-at-scale.git
+cd verify-ppt-at-scale
 ```
 
 ### 2. Download external repositories
@@ -106,7 +108,7 @@ hf auth login
 
 # Create a virtual environment and install dependencies for pre-pre-training and pre-training
 # [IMPORTANT] This is required as some libraries like `Nanotron` and `DataTrove` are not installed in the vLLM container, and we need to install them in a separate virtual environment.
-cd /path/to/verify-ppt
+cd /path/to/verify-ppt-at-scale
 cd external/nanotron
 python3 -m venv --system-site-packages /path/to/venv/verify-ppt_training
 source /path/to/venv/verify-ppt_training/bin/activate
@@ -138,6 +140,10 @@ exit
 You can find the pre-processed datasets on Hugging Face Hub. Please refer to the following table for the corresponding Hugging Face repository links.
 
 #### Pre-pretraining
+
+<details>
+<summary>Click to expand the table for pre-pretraining datasets</summary>
+
 | Settings | Hugging Face repository |
 | --- | --- |
 | k-Shuffle Dyck | [verify-ppt/ppt-shuff_dyck_v2](https://huggingface.co/datasets/verify-ppt/ppt-shuff_dyck_v2) |
@@ -149,7 +155,13 @@ You can find the pre-processed datasets on Hugging Face Hub. Please refer to the
 | MP-Struct Core | [verify-ppt/ppt-mpstructcore_v2](https://huggingface.co/datasets/verify-ppt/ppt-mpstructcore_v2) |
 | NCA | [verify-ppt/ppt-nca](https://huggingface.co/datasets/verify-ppt/ppt-nca) |
 
+</details>
+
 #### Pre-training
+
+<details>
+<summary>Click to expand the table for pre-training datasets</summary>
+
 | Settings | Hugging Face repository |
 | --- | --- |
 | C4 | [verify-ppt/c4-c4](https://huggingface.co/datasets/verify-ppt/c4-c4) |
@@ -279,6 +291,7 @@ You can find the pre-processed datasets on Hugging Face Hub. Please refer to the
 | C4 (100B) | [verify-ppt/c4-c4_65](https://huggingface.co/datasets/verify-ppt/c4-c4_65) |
 | Marin (100B) | Use [verify-ppt/marin-dclm_marin_103b](https://huggingface.co/datasets/verify-ppt/marin-dclm_marin_103b) instead of [verify-ppt/marin-dclm_marin](https://huggingface.co/datasets/verify-ppt/marin-dclm_marin). The rest of the datasets remain the same. |
 
+</details>
 
 ### If you want to pre-process the datasets by yourself
 We provide scripts to download and tokenize the datasets used in our experiments. Please make sure to modify the placeholder paths in the scripts to point to the actual paths on your system before running the commands.
@@ -476,6 +489,10 @@ All the results will be saved under the `./evaluation/logs_verbatim` directory b
 The artifacts for the models are available on Hugging Face. You can find the links to the models in the table below:
 
 ### 500M
+
+<details>
+<summary>Click to expand the table for 500M models</summary>
+
 | PPT Task | PT Data | Hugging Face Model Link |
 | --- | --- | --- |
 | - | C4 | [verify-ppt/c4_500m](https://huggingface.co/verify-ppt/c4_500m) |
@@ -491,7 +508,13 @@ The artifacts for the models are available on Hugging Face. You can find the lin
 | k-Shuffle Dyck | Marin | [verify-ppt/ppt_marin_500m_v2](https://huggingface.co/verify-ppt/ppt_marin_500m_v2) |
 | Control (Marin) | Marin | [verify-ppt/ppt-marin_marin_500m](https://huggingface.co/verify-ppt/ppt-marin_marin_500m) |
 
+</details>
+
 ### 1B
+
+<details>
+<summary>Click to expand the table for 1B models</summary>
+
 | PPT Task | PT Data | Hugging Face Model Link |
 | --- | --- | --- |
 | - | C4 | [verify-ppt/c4_1b](https://huggingface.co/verify-ppt/c4_1b) |
@@ -507,7 +530,13 @@ The artifacts for the models are available on Hugging Face. You can find the lin
 | k-Shuffle Dyck | Marin | [verify-ppt/ppt_marin_1b_v2](https://huggingface.co/verify-ppt/ppt_marin_1b_v2) |
 | Control (Marin) | Marin | [verify-ppt/ppt-marin_marin_1b_re](https://huggingface.co/verify-ppt/ppt-marin_marin_1b_re) |
 
+</details>
+
 ### 3B
+
+<details>
+<summary>Click to expand the table for 3B models</summary>
+
 | PPT Task | PT Data | Hugging Face Model Link |
 | --- | --- | --- |
 | - | C4 | [verify-ppt/c4_3b_re](https://huggingface.co/verify-ppt/c4_3b_re) |
@@ -556,11 +585,19 @@ The artifacts for the models are available on Hugging Face. You can find the lin
 | - | Marin (100B) | [verify-ppt/marin_100b_3b](https://huggingface.co/verify-ppt/marin_100b_3b) |
 | k-Shuffle Dyck | Marin (100B) | [verify-ppt/ppt-marin_100b_3b](https://huggingface.co/verify-ppt/ppt-marin_100b_3b) |
 
+</details>
+
 ### 7B
+
+<details>
+<summary>Click to expand the table for 7B models</summary>
+
 | PPT Task | PT Data | Hugging Face Model Link |
 | --- | --- | --- |
 | - | Marin (75.5B) | [verify-ppt/marin_100b_7b](https://huggingface.co/verify-ppt/marin_100b_7b) |
 | k-Shuffle Dyck | Marin (75.5B) | [verify-ppt/ppt_marin_100b_7b](https://huggingface.co/verify-ppt/ppt_marin_100b_7b) |
+
+</details>
 
 ## Citation
 If you find this repository useful for your research, please consider citing the following paper:

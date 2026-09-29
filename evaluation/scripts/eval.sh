@@ -15,7 +15,7 @@ export HF_DATASETS_TRUST_REMOTE_CODE=true
 export TMPDIR=/tmp
 export NCCL_DEBUG=INFO
 
-results_dir=/path/to/verify-ppt/evaluation/logs_lmeval
+results_dir=/path/to/verify-ppt-at-scale/evaluation/logs_lmeval
 mkdir -p $results_dir
 zero_shot_eval_tasks=(
     hellaswag

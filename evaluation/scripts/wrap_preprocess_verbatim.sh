@@ -7,10 +7,10 @@
 
 CONTAINER="${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}"
 
-chmod +x /path/to/verify-ppt/evaluation/scripts/preprocess_verbatim.sh
+chmod +x /path/to/verify-ppt-at-scale/evaluation/scripts/preprocess_verbatim.sh
 singularity exec \
     -B /etc/ssl/certs:/etc/ssl/certs \
     -B /etc/pki/ca-trust:/etc/pki/ca-trust \
     -B $HOME:$HOME \
     "${CONTAINER}" \
-    /path/to/verify-ppt/evaluation/scripts/preprocess_verbatim.sh
+    /path/to/verify-ppt-at-scale/evaluation/scripts/preprocess_verbatim.sh

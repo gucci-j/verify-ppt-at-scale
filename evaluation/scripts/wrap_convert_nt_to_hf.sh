@@ -24,7 +24,7 @@ checkpoint_steps=(
     "10000"
 )
 
-chmod +x /path/to/verify-ppt/evaluation/scripts/convert_nt_to_hf.sh
+chmod +x /path/to/verify-ppt-at-scale/evaluation/scripts/convert_nt_to_hf.sh
 for step in "${checkpoint_steps[@]}"; do
     checkpoint_path="$1/${step}"
     singularity exec \
@@ -32,5 +32,5 @@ for step in "${checkpoint_steps[@]}"; do
         -B /etc/pki/ca-trust:/etc/pki/ca-trust \
         -B $HOME:$HOME \
         --nv "${CONTAINER}" \
-        /path/to/verify-ppt/evaluation/scripts/convert_nt_to_hf.sh $checkpoint_path
+        /path/to/verify-ppt-at-scale/evaluation/scripts/convert_nt_to_hf.sh $checkpoint_path
 done

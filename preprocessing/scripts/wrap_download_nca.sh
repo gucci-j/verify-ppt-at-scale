@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="/path/to/verify-ppt/preprocessing/scripts"
+SCRIPT_DIR="/path/to/verify-ppt-at-scale/preprocessing/scripts"
 DOWNLOAD_SCRIPT="${SCRIPT_DIR}/download_nca.sh"
 CONTAINER=${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}
 

@@ -18,9 +18,9 @@ export TMPDIR=/tmp
 
 source /path/to/venv/verify-ppt_training/bin/activate
 
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python extract_baseline_subset.py \
-    --config-yaml "/path/to/verify-ppt/training/configs/smollm3/smollm3_500m.yaml" \
+    --config-yaml "/path/to/verify-ppt-at-scale/training/configs/smollm3/smollm3_500m.yaml" \
     --baseline-steps "${BASELINE_STEPS}" \
     --output-base "/path/to/data/smollm3_baseline" \
     --source-mode "${SOURCE_MODE}" \

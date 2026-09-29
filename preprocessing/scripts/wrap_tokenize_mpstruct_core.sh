@@ -5,7 +5,7 @@
 #SBATCH --mem=64GB
 #SBATCH --time=24:00:00
 
-SCRIPT_DIR="/path/to/verify-ppt/preprocessing/scripts"
+SCRIPT_DIR="/path/to/verify-ppt-at-scale/preprocessing/scripts"
 PREPROCESS_SCRIPT="${SCRIPT_DIR}/tokenize_mpstruct_core.sh"
 CONTAINER=${CONTAINER:-/path/to/containers/vllm_26.01-py3.sif}
 

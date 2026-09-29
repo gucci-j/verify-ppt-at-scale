@@ -14,10 +14,10 @@ export TMPDIR=/tmp
 source /path/to/venv/verify-ppt_training/bin/activate
 
 # Run the preprocessing script
-cd /path/to/verify-ppt/preprocessing/src
+cd /path/to/verify-ppt-at-scale/preprocessing/src
 python tokenize_mpstruct_core.py \
     --output-root  "/path/to/data/ppt/mpstruct" \
-    --logging-root "/path/to/verify-ppt/preprocessing/logs" \
+    --logging-root "/path/to/verify-ppt-at-scale/preprocessing/logs" \
     --cache-root   "/path/to/cache" \
     --seq-length 2048 \
     --num-sentences 260000 \
