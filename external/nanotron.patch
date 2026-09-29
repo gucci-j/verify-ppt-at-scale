@@ -1,0 +1,557 @@
+diff --git a/examples/smollm3/convert_hf_to_nanotron.py b/examples/smollm3/convert_hf_to_nanotron.py
+new file mode 100644
+index 00000000..41918271
+--- /dev/null
++++ b/examples/smollm3/convert_hf_to_nanotron.py
+@@ -0,0 +1,212 @@
++"""
++Converts a SmolLM3 HuggingFace model to Nanotron format.
++
++Command:
++    torchrun --nproc_per_node=1 convert_hf_to_nanotron.py --checkpoint_path=HuggingFaceTB/SmolLM3-3B --save_path=smollm3-nanotron
++"""
++
++import dataclasses
++import json
++from argparse import ArgumentParser
++from pathlib import Path
++
++import nanotron
++import torch
++from nanotron.config import Qwen2Config as NanotronQwen2Config
++from nanotron.models.qwen import Qwen2ForTraining
++from transformers import AutoConfig, AutoModelForCausalLM
++
++try:
++    from transformers import SmolLM3Config as HFSmollm3Config
++    from transformers import SmolLM3ForCausalLM
++except ImportError:
++    HFSmollm3Config = None
++    SmolLM3ForCausalLM = None
++
++try:
++    from .convert_weights import get_config_mapping, get_weight_mapping, load_nanotron_model
++except ImportError:
++    from convert_weights import get_config_mapping, get_weight_mapping, load_nanotron_model
++
++
++def _handle_attention_block(
++    q: torch.Tensor,
++    k: torch.Tensor,
++    v: torch.Tensor,
++    n_q_heads: int,
++    n_kv_heads: int,
++    d_qk: int,
++    interleave: bool,
++) -> torch.Tensor:
++    """Concatenates q, k, v weights and applies permutation if rotary embeddings require interleaving."""
++    def interleave_weight(w: torch.Tensor) -> torch.Tensor:
++        w_new = []
++        for head_w in w.split(d_qk):
++            if head_w.dim() == 1:
++                head_w = head_w.view(2, d_qk // 2).transpose(0, 1).reshape(d_qk)
++            else:
++                head_w = head_w.view(2, d_qk // 2, -1).transpose(0, 1).reshape(d_qk, -1)
++            w_new.append(head_w)
++        return torch.cat(w_new)
++
++    q = interleave_weight(q) if interleave else q
++    k = interleave_weight(k) if interleave else k
++    return torch.cat([q, k, v], dim=0)
++
++
++def convert_hf_to_nt(
++    model_hf,
++    model_nt: Qwen2ForTraining,
++    config: NanotronQwen2Config,
++    interleave_qkv: bool = False,
++):
++    """Converts the weights from model_hf to model_nt, making modifications in-place."""
++    hf_sd = model_hf.state_dict()
++    nt_to_hf = get_weight_mapping(config, nt_to_hf=True)
++
++    for module_name_nt, module_nt in model_nt.named_modules():
++        for param_name_nt, param_nt in module_nt.named_parameters(recurse=False):
++            nt_key = f"{module_name_nt}.{param_name_nt}"
++            if nt_key not in nt_to_hf:
++                continue
++
++            hf_target = nt_to_hf[nt_key]
++
++            # In the case of qkv_proj, nt_to_hf maps to [q_proj, k_proj, v_proj]
++            if "qkv_proj" in module_name_nt:
++                if isinstance(hf_target, list):
++                    key_q = next(k for k in hf_target if "q_proj" in k)
++                    key_k = next(k for k in hf_target if "k_proj" in k)
++                    key_v = next(k for k in hf_target if "v_proj" in k)
++                    q = hf_sd[key_q]
++                    k = hf_sd[key_k]
++                    v = hf_sd[key_v]
++                    param = _handle_attention_block(
++                        q,
++                        k,
++                        v,
++                        config.num_attention_heads,
++                        config.num_key_value_heads,
++                        config.hidden_size // config.num_attention_heads,
++                        interleave_qkv,
++                    )
++                else:
++                    param = hf_sd[hf_target]
++
++            # In the case of gate_up_proj, nt_to_hf maps to [gate_proj, up_proj]
++            elif "gate_up_proj" in module_name_nt:
++                if isinstance(hf_target, list):
++                    key_gate = next(k for k in hf_target if "gate_proj" in k)
++                    key_up = next(k for k in hf_target if "up_proj" in k)
++                    gate = hf_sd[key_gate]
++                    up = hf_sd[key_up]
++                    param = torch.cat([gate, up], dim=0)
++                else:
++                    param = hf_sd[hf_target]
++
++            # All other cases are 1-to-1 correspondence
++            else:
++                if isinstance(hf_target, list):
++                    hf_key = hf_target[0]
++                else:
++                    hf_key = hf_target
++
++                # Handle tied embeddings if lm_head is not in state dict
++                if hf_key not in hf_sd and "lm_head" in hf_key and "model.embed_tokens.weight" in hf_sd:
++                    param = hf_sd["model.embed_tokens.weight"]
++                else:
++                    param = hf_sd[hf_key]
++
++            with torch.no_grad():
++                param_nt.copy_(param)
++
++
++def get_nanotron_config(config) -> NanotronQwen2Config:
++    """Converts a HuggingFace SmolLM3 configuration to a Nanotron Qwen2 configuration."""
++    attrs = {
++        nt_key: getattr(config, hf_key)
++        for nt_key, hf_key in get_config_mapping(nt_to_hf=True).items()
++        if hasattr(config, hf_key)
++    }
++
++    if hasattr(config, "sliding_window") and config.sliding_window is not None:
++        if getattr(config, "use_sliding_window", True):
++            attrs["sliding_window_size"] = config.sliding_window
++        else:
++            attrs["sliding_window_size"] = None
++
++    if hasattr(config, "no_rope_layer_interval"):
++        attrs["no_rope_layer"] = config.no_rope_layer_interval
++
++    return NanotronQwen2Config(**attrs)
++
++
++def convert_checkpoint_and_save(
++    checkpoint_path: Path | str,
++    save_path: Path,
++    interleave_qkv: bool = False,
++    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
++    dtype: torch.dtype = torch.bfloat16,
++):
++    """Loads the HF SmolLM3 checkpoint, initializes a Nanotron model,
++    converts the weights and saves the checkpoint to save_path."""
++    save_path = Path(save_path)
++    save_path.mkdir(parents=True, exist_ok=True)
++
++    print(f"Loading HuggingFace model from {checkpoint_path}...")
++    if SmolLM3ForCausalLM is not None:
++        try:
++            hf_config = HFSmollm3Config.from_pretrained(checkpoint_path)
++            hf_model = SmolLM3ForCausalLM.from_pretrained(checkpoint_path, torch_dtype=dtype)
++        except Exception:
++            hf_config = AutoConfig.from_pretrained(checkpoint_path)
++            hf_model = AutoModelForCausalLM.from_pretrained(checkpoint_path, torch_dtype=dtype)
++    else:
++        hf_config = AutoConfig.from_pretrained(checkpoint_path)
++        hf_model = AutoModelForCausalLM.from_pretrained(checkpoint_path, torch_dtype=dtype)
++
++    print("Initializing Nanotron model...")
++    model_config = get_nanotron_config(hf_config)
++    nanotron_model = load_nanotron_model(model_config=model_config, device=device, dtype=dtype)
++
++    print("Converting weights from HF to Nanotron...")
++    parallel_context = nanotron.parallel.ParallelContext(
++        data_parallel_size=1, pipeline_parallel_size=1, tensor_parallel_size=1
++    )
++    convert_hf_to_nt(hf_model, nanotron_model, model_config, interleave_qkv=interleave_qkv)
++
++    print(f"Saving Nanotron weights to {save_path}...")
++    nanotron.serialize.save_weights(model=nanotron_model, parallel_context=parallel_context, root_folder=save_path)
++
++    with open(save_path / "model_config.json", "w+") as f:
++        json.dump(dataclasses.asdict(model_config), f, indent=2)
++
++    print(f"Model successfully saved to {save_path}")
++
++
++if __name__ == "__main__":
++    parser = ArgumentParser(description="Convert SmolLM3 HF weights to Nanotron format")
++    parser.add_argument(
++        "--checkpoint_path",
++        type=str,
++        default="HuggingFaceTB/SmolLM3-3B",
++        help="Path or HuggingFace repo ID of the HF model",
++    )
++    parser.add_argument(
++        "--save_path",
++        type=Path,
++        default=Path("smollm3-nanotron"),
++        help="Path to save the Nanotron checkpoint",
++    )
++    parser.add_argument(
++        "--interleave_qkv",
++        action="store_true",
++        help="Whether to interleave rotary embedding weights for Q and K",
++    )
++    args = parser.parse_args()
++
++    convert_checkpoint_and_save(
++        checkpoint_path=args.checkpoint_path,
++        save_path=args.save_path,
++        interleave_qkv=args.interleave_qkv,
++    )
+diff --git a/examples/smollm3/convert_nanotron_to_hf.py b/examples/smollm3/convert_nanotron_to_hf.py
+index 648dbbd5..a9c20748 100644
+--- a/examples/smollm3/convert_nanotron_to_hf.py
++++ b/examples/smollm3/convert_nanotron_to_hf.py
+@@ -116,7 +116,7 @@ def get_hf_config(config: NanotronConfigs) -> HFSmollm3Config:
+     else:
+         attrs["use_sliding_window"] = False
+         attrs["sliding_window"] = None
+-    attrs["no_rope_layer_interval"] = config.no_rope_layer
++    attrs["no_rope_layer_interval"] = 1000000
+     return HFSmollm3Config(**attrs)
+ 
+ 
+diff --git a/src/nanotron/config/models_config.py b/src/nanotron/config/models_config.py
+index 9e86a84c..5ced9105 100644
+--- a/src/nanotron/config/models_config.py
++++ b/src/nanotron/config/models_config.py
+@@ -135,6 +135,7 @@ class Qwen2Config:
+     rope_theta: float = 10000.0
+     rope_interleaved: bool = False
+     rope_seq_len_interpolation_factor: Optional[float] = None  # if not None, discrete positions will be interpolated by this factor via the trick in https://arxiv.org/abs/2306.15595
++    rope_seq_len_scaling_factor: Optional[float] = None
+     tie_word_embeddings: bool = False
+     use_cache: bool = True
+     vocab_size: int = 32000
+@@ -152,7 +153,7 @@ class Qwen2Config:
+     _use_qkv_packed: bool = False
+     _use_doc_masking: bool = False
+ 
+-    log_attn_probs: bool = True # Whether to log the attention probabilities
++    log_attn_probs: bool = False # Whether to log the attention probabilities
+     ring_attn_heads_k_stride: Optional[int] = None # Stride of the heads in the key tensor for llama3 ring attention
+ 
+     # MoE configuration
+diff --git a/src/nanotron/data/nemo_dataset/blendable_dataset.py b/src/nanotron/data/nemo_dataset/blendable_dataset.py
+index 96c49fe0..3ff7b386 100644
+--- a/src/nanotron/data/nemo_dataset/blendable_dataset.py
++++ b/src/nanotron/data/nemo_dataset/blendable_dataset.py
+@@ -184,10 +184,7 @@ class BlendableDataset(torch.utils.data.Dataset):
+         """
+         stats = {}
+         for dataset_idx, dataset in enumerate(self.datasets):
+-            assert (
+-                "s3" in dataset.folder_path
+-            ), "Only S3 paths are supported for consumption stats"  # TODO: remove this
+-            stats[dataset.folder_path] = {"tokens": self.consumed_tokens[dataset_idx]}
++            stats[str(dataset.folder_path)] = {"tokens": self.consumed_tokens[dataset_idx]}
+         return stats
+ 
+ 
+diff --git a/src/nanotron/helpers.py b/src/nanotron/helpers.py
+index c8df3d21..24c4310e 100644
+--- a/src/nanotron/helpers.py
++++ b/src/nanotron/helpers.py
+@@ -354,7 +354,23 @@ def init_optimizer_and_grad_accumulator(
+     def basic_optimizer_builder(named_param_groups):
+         optimizer = None
+ 
+-        if optimizer_args.optimizer_factory.name == "adamW":
++        if optimizer_args.optimizer_factory.name == "flash_adamw":
++            from flashoptim import FlashAdamW
++
++            # master_weight_bits=None when accumulating grads in fp32 (params are already fp32)
++            mwb = None if optimizer_args.accumulate_grad_in_fp32 else 24
++
++            def optimizer(param_groups):
++                return FlashAdamW(
++                    param_groups,
++                    lr=optimizer_args.learning_rate_scheduler.learning_rate,
++                    weight_decay=optimizer_args.weight_decay,
++                    eps=optimizer_args.optimizer_factory.adam_eps,
++                    betas=(optimizer_args.optimizer_factory.adam_beta1, optimizer_args.optimizer_factory.adam_beta2),
++                    master_weight_bits=mwb,
++                )
++
++        elif optimizer_args.optimizer_factory.name == "adamW":
+ 
+             def optimizer(param_groups):
+                 return torch.optim.AdamW(
+@@ -810,14 +826,17 @@ def compute_remain_train_steps_of_a_data_stage_from_ckp(
+         next_stage = next((s for s in config.data_stages if s.start_training_step > stage.start_training_step), None)
+         total_train_steps = next_stage.start_training_step
+ 
+-    if metadata.last_train_step > stage.start_training_step:
+-        # NOTE: if the last_train_step is larger than the start_training_step of the current stage,
+-        # it means that the training has already passed this stage
+-        # so there is no remaining steps
++    # If we've already reached or passed the end of this stage, nothing remains.
++    if metadata.last_train_step >= total_train_steps:
+         return 0
+-    else:
+-        last_train_steps = metadata.last_train_step if is_resume_from_training() else stage.start_training_step
+-        return total_train_steps - last_train_steps + 1
++
++    # When resuming from checkpoint, training restarts at last_train_step + 1,
++    # so remaining steps are exactly [last_train_step + 1, total_train_steps].
++    if is_resume_from_training():
++        return max(total_train_steps - metadata.last_train_step, 0)
++
++    # Fresh run for this stage: include the start step in the count.
++    return total_train_steps - stage.start_training_step + 1
+ 
+ 
+ def get_consumed_train_samples_of_a_data_stage_from_ckp(
+diff --git a/src/nanotron/models/qwen.py b/src/nanotron/models/qwen.py
+index 932c2d32..e3c6ac92 100644
+--- a/src/nanotron/models/qwen.py
++++ b/src/nanotron/models/qwen.py
+@@ -200,7 +200,8 @@ class Qwen2Attention(LogMixin, nn.Module):
+                 dim=self.head_dim,
+                 base=config.rope_theta,
+                 interleaved=config.rope_interleaved,
+-                seq_len_interpolation_factor=config.rope_seq_len_interpolation_factor,
++                seq_len_interpolation_factor=getattr(config, "rope_seq_len_interpolation_factor", None)
++                or getattr(config, "rope_seq_len_scaling_factor", None),
+             )
+         else:
+             self.rotary_emb = RotaryEmbedding(
+@@ -208,7 +209,8 @@ class Qwen2Attention(LogMixin, nn.Module):
+                 max_seq_len=config.max_position_embeddings,
+                 base=config.rope_theta,
+                 interleaved=config.rope_interleaved,
+-                seq_len_scaling_factor=config.rope_seq_len_scaling_factor,
++                seq_len_scaling_factor=getattr(config, "rope_seq_len_scaling_factor", None)
++                or getattr(config, "rope_seq_len_interpolation_factor", None),
+                 fused=config._fused_rotary_emb,
+             )
+         self.attention = CoreAttention(config, tp_pg, cp_pg, layer_idx)
+diff --git a/src/nanotron/optim/base.py b/src/nanotron/optim/base.py
+index 44066d25..72d60349 100644
+--- a/src/nanotron/optim/base.py
++++ b/src/nanotron/optim/base.py
+@@ -159,12 +159,15 @@ def custom_load_state_dict(self, state_dict: StateDict, map_location: Union[str,
+     # State that is not assigned to params is copied as is (needed for
+     # backward compatibility).
+     state: DefaultDict[torch.Tensor, Dict[Any, Any]] = defaultdict(dict)
+-    for k, v in state_dict["state"].items():
++    state_items = list(state_dict["state"].items())
++    state_dict["state"].clear()
++    for k, v in state_items:
+         if k in id_map:
+             param = id_map[k]
+             state[param] = _cast(param, v, param_id=k, param_groups=state_dict["param_groups"])
+         else:
+             state[k] = v
++    del state_items
+ 
+     # Update parameter groups, setting their 'params' value
+     def update_group(group: Dict[str, Any], new_group: Dict[str, Any]) -> Dict[str, Any]:
+@@ -173,6 +176,7 @@ def custom_load_state_dict(self, state_dict: StateDict, map_location: Union[str,
+ 
+     param_groups = [update_group(g, ng) for g, ng in zip(groups, saved_groups)]
+     self.__setstate__({"state": state, "param_groups": param_groups})
++    torch.cuda.empty_cache()
+ 
+     for post_hook in self._optimizer_load_state_dict_post_hooks.values():
+         post_hook(self)
+diff --git a/src/nanotron/optim/inherit_from_other_optimizer.py b/src/nanotron/optim/inherit_from_other_optimizer.py
+index 04cf1d46..48c733e9 100644
+--- a/src/nanotron/optim/inherit_from_other_optimizer.py
++++ b/src/nanotron/optim/inherit_from_other_optimizer.py
+@@ -18,8 +18,6 @@ class InheritFromOtherOptimizer(BaseOptimizer):
+                 lambda state_dict, map_location=None: custom_load_state_dict(
+                     optimizer, state_dict, map_location=map_location
+                 )
+-                if map_location is not None
+-                else original_load_state_dict(state_dict)
+             )
+ 
+         self.optimizer: Optimizer = optimizer
+diff --git a/src/nanotron/optim/named_optimizer.py b/src/nanotron/optim/named_optimizer.py
+index d51de433..377d3dfe 100644
+--- a/src/nanotron/optim/named_optimizer.py
++++ b/src/nanotron/optim/named_optimizer.py
+@@ -52,9 +52,17 @@ class NamedOptimizer(InheritFromOtherOptimizer):
+ 
+         assert "names" not in optim_state_dict
+ 
+-        state_id_to_name = {id(state): self.id_to_name[id(param)] for param, state in self.optimizer.state.items()}
++        # In PyTorch optimizer.state_dict(), integer indices (keys in `optim_state_dict["state"]`)
++        # are assigned sequentially to unique parameters as they appear in `param_groups`.
++        param_mappings = {}
++        for group in self.param_groups:
++            for p in group["params"]:
++                if id(p) not in param_mappings:
++                    param_mappings[id(p)] = len(param_mappings)
++
++        idx_to_name = {idx: self.id_to_name[p_id] for p_id, idx in param_mappings.items()}
+         optim_state_dict["names"] = {
+-            index: state_id_to_name[id(state)] for index, state in optim_state_dict["state"].items()
++            index: idx_to_name[index] for index in optim_state_dict["state"].keys()
+         }
+         return optim_state_dict
+ 
+diff --git a/src/nanotron/parallel/context.py b/src/nanotron/parallel/context.py
+index 04fb4c66..5a54fc91 100644
+--- a/src/nanotron/parallel/context.py
++++ b/src/nanotron/parallel/context.py
+@@ -21,7 +21,21 @@ class ParallelContext:
+     ):
+         """Initialize parallel context."""
+         world_size = int(os.environ["WORLD_SIZE"])
+-        local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "8")) if world_size > 8 else world_size
++        # Determine local world size (number of processes on the current node).
++        # Prefer explicit `LOCAL_WORLD_SIZE` if set by the launcher; otherwise
++        # fall back to the number of visible CUDA devices which should match
++        # the number of processes spawned per node by torch's launcher.
++        local_ws_env = os.environ.get("LOCAL_WORLD_SIZE")
++        if local_ws_env is not None:
++            local_world_size = int(local_ws_env)
++        else:
++            try:
++                local_world_size = int(torch.cuda.device_count())
++            except Exception:
++                local_world_size = world_size
++        # Bound the local size to the global world size
++        if local_world_size > world_size:
++            local_world_size = world_size
+ 
+         assert (
+             tensor_parallel_size * pipeline_parallel_size * context_parallel_size * data_parallel_size
+diff --git a/src/nanotron/parallel/pipeline_parallel/engine.py b/src/nanotron/parallel/pipeline_parallel/engine.py
+index 14106001..84174cee 100644
+--- a/src/nanotron/parallel/pipeline_parallel/engine.py
++++ b/src/nanotron/parallel/pipeline_parallel/engine.py
+@@ -109,9 +109,11 @@ class PipelineEngine(ABC):
+         is_ddp = isinstance(model, DistributedDataParallel)
+         context_list = []
+         if is_ddp:
+-            if grad_accumulator is not None and nb_backwards < self.nb_microbatches - 1:
+-                context_list.append(grad_accumulator.no_sync())  # Prevents grad accumulator from syncing
+-            if nb_backwards == self.nb_microbatches - 1:
++            if nb_backwards < self.nb_microbatches - 1:
++                context_list.append(model.no_sync())
++                if grad_accumulator is not None:
++                    context_list.append(grad_accumulator.no_sync())  # Prevents grad accumulator from syncing
++            elif nb_backwards == self.nb_microbatches - 1:
+                 # Triggers DDP to sync gradients in the next backward pass
+                 context_list.append(ddp_trigger_sync_in_bwd(model_ddp=model))
+         context = ContextManagers(context_list)
+diff --git a/src/nanotron/serialize/optimizer.py b/src/nanotron/serialize/optimizer.py
+index 7f49941d..1d34d89c 100644
+--- a/src/nanotron/serialize/optimizer.py
++++ b/src/nanotron/serialize/optimizer.py
+@@ -130,17 +130,27 @@ def save_lr_scheduler(
+ # Helper functions to move optimizer states
+ @torch.no_grad()
+ def state_dict_to_device(state_dict: Dict, device: str) -> Dict:
++    if not state_dict["state"]:
++        return state_dict
++
++    first_state = state_dict["state"][next(iter(state_dict["state"]))]
++    # Support both standard AdamW keys (exp_avg) and other optimizer state formats
++    tensor_keys = [k for k, v in first_state.items() if isinstance(v, torch.Tensor)]
++    if not tensor_keys:
++        return state_dict
++
+     assert (
+-        state_dict["state"][0]["exp_avg"].device.type == "cpu"
++        first_state[tensor_keys[0]].device.type == "cpu"
+     ), "Optimizer states should be on CPU to avoid extra memory usage when loading from checkpoint"
+     torch.cuda.empty_cache()
+ 
+     for _, optim_state in sorted(state_dict["state"].items(), key=lambda x: x[0]):
+         for name, tensor in optim_state.items():
+-            optim_state[name] = tensor.to(device)
++            if isinstance(tensor, torch.Tensor):
++                optim_state[name] = tensor.to(device)
+ 
+     assert (
+-        state_dict["state"][0]["exp_avg"].device.type == "cuda"
++        first_state[tensor_keys[0]].device.type == "cuda"
+     ), "Optimizer states should be on GPU because model is on GPU"
+     torch.cuda.empty_cache()
+ 
+@@ -192,7 +202,7 @@ def load_optimizer(
+                 )
+             )
+             ckp_sharded_optim_states = merge_dp_shard_in_zero1_optimizer(
+-                model, ckp_optimizer_config, shard_paths, parallel_context, map_location
++                model, ckp_optimizer_config, shard_paths, parallel_context, map_location="cpu"
+             )
+         else:
+             # NOTE: if the checkpoint is from a Zero-0 optimizer, then we don't need to merge the shards
+@@ -207,7 +217,7 @@ def load_optimizer(
+             for shard_path in shard_paths:
+                 pp_rank, tp_rank = extract_parallel_ranks_from_shard_path(shard_path, is_zero1=False)
+                 ckp_sharded_optim_states[(pp_rank, tp_rank)] = torch.load(
+-                    shard_path, map_location=map_location
++                    shard_path, map_location="cpu"
+                 )  # load all optim states in mem
+ 
+         model_state_dict = model.state_dict()
+@@ -334,7 +344,7 @@ def load_optimizer(
+         state_dict = torch.load(
+             root_folder
+             / optimizer_filename(parallel_context, is_zero=optimizer.inherit_from(optim.ZeroDistributedOptimizer)),
+-            map_location=map_location,
++            map_location="cpu",
+         )
+ 
+     if isinstance(optimizer, ZeroDistributedOptimizer):
+diff --git a/src/nanotron/trainer.py b/src/nanotron/trainer.py
+index 41d5cb87..282cfaab 100644
+--- a/src/nanotron/trainer.py
++++ b/src/nanotron/trainer.py
+@@ -101,7 +101,7 @@ from nanotron.serialize import (
+     save_random_states,
+ )
+ from nanotron.serialize.metadata import DataStageMetadata, TrainingMetadata
+-from nanotron.serialize.optimizer import load_optimizer, state_dict_to_device
++from nanotron.serialize.optimizer import load_optimizer
+ 
+ logger = logging.get_logger(__name__)
+ 
+@@ -220,7 +220,7 @@ class DistributedTrainer:
+                 root_folder=self.init_checkpoint_path,
+                 param_shard_metadata=self.param_shard_metadata,
+                 model=self.unwrapped_model,
+-                map_location="cpu",
++                map_location=None,
+             )
+ 
+         # Init learning rate scheduler
+@@ -695,14 +695,6 @@ class DistributedTrainer:
+             loss_avg = None
+             handle = None
+ 
+-        # Move optimizer states back to GPU before optimizer step
+-        if (
+-            self.init_checkpoint_path is not None
+-            and self.config.checkpoints.load_optimizer
+-            and self.iteration_step == self.initial_iter_step
+-        ):
+-            state_dict_to_device(self.optimizer.state_dict(), "cuda")
+-
+         before_optim_step_sanity_checks(
+             self.config, self.parallel_context, self.unwrapped_model, self.grad_accumulator, self.optimizer
+         )

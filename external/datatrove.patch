@@ -1,0 +1,111 @@
+diff --git a/src/datatrove/pipeline/readers/base.py b/src/datatrove/pipeline/readers/base.py
+index ed2cf4d..052b431 100644
+--- a/src/datatrove/pipeline/readers/base.py
++++ b/src/datatrove/pipeline/readers/base.py
+@@ -62,7 +62,7 @@ class BaseReader(PipelineStep):
+             "text": data.pop(self.text_key, ""),
+             "id": data.pop(self.id_key, f"{path}/{id_in_file}"),
+             "media": data.pop("media", []),
+-            "metadata": data.pop("metadata", {}) | data,  # remaining data goes into metadata
++            "metadata": data,  # remaining data goes into metadata
+         }
+ 
+     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+@@ -77,6 +77,8 @@ class BaseReader(PipelineStep):
+ 
+         """
+         parsed_data = self.adapter(data, source_file, id_in_file)
++        if not parsed_data:
++            return None
+         if not parsed_data.get("text", None):
+             if not self._empty_warning:
+                 self._empty_warning = True
+diff --git a/src/datatrove/pipeline/readers/huggingface.py b/src/datatrove/pipeline/readers/huggingface.py
+index 8b09d6d..996776c 100644
+--- a/src/datatrove/pipeline/readers/huggingface.py
++++ b/src/datatrove/pipeline/readers/huggingface.py
+@@ -1,4 +1,3 @@
+-import copy
+ from typing import Callable
+ 
+ from loguru import logger
+@@ -28,6 +27,7 @@ class HuggingFaceDatasetReader(BaseReader):
+         default_metadata: default metadata to add to all documents
+         shuffle_files: shuffle the files within the returned shard. Mostly used for data viz. purposes, do not use
+             with dedup blocks
++        load_from_disk: Dataset is stored locally (as Arrow/Parquet shards)
+     """
+ 
+     name = "🤗 HuggingFace"
+@@ -47,6 +47,7 @@ class HuggingFaceDatasetReader(BaseReader):
+         id_key: str = "id",
+         default_metadata: dict = None,
+         shuffle_files: bool = False,
++        load_from_disk: bool = False,
+     ):
+         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
+         self.dataset = dataset
+@@ -55,6 +56,12 @@ class HuggingFaceDatasetReader(BaseReader):
+         self.doc_progress = doc_progress
+         self.streaming = streaming
+         self.shuffle_files = shuffle_files
++        self.load_from_disk = load_from_disk
++        if self.load_from_disk:
++            if dataset_options is not None:
++                logger.warning("Any dataset options passed when loading from disk will be ignored.")
++            if streaming:
++                logger.warning("Streaming cannot be used when loading from disk, will be ignored.")
+ 
+     def get_document_from_dict(self, data: dict, source_file: str, id_in_file: int | str):
+         document = super().get_document_from_dict(data, source_file, id_in_file)
+@@ -67,7 +74,7 @@ class HuggingFaceDatasetReader(BaseReader):
+         from datasets.distributed import split_dataset_by_node
+ 
+         if isinstance(dst, Dataset):
+-            return dst.shard(world_size, rank, contiguous=True)
++            return dst.shard(world_size, rank, contiguous=False)
+         elif isinstance(dst, IterableDataset) and dst.n_shards > 1:
+             # In case we have more than 1 shard (file), we shard
+             # on shards/file level.
+@@ -76,26 +83,21 @@ class HuggingFaceDatasetReader(BaseReader):
+                     f"Requested shard {rank} of a streaming dataset, but it only has {dst.n_shards} shards."
+                 )
+                 return None
+-            ex_iterable = dst._ex_iterable.shard_data_sources(index=rank, num_shards=world_size, contiguous=False)
+-            return IterableDataset(
+-                ex_iterable=ex_iterable,
+-                info=dst._info.copy(),
+-                split=dst._split,
+-                formatting=dst._formatting,
+-                shuffling=copy.deepcopy(dst._shuffling),
+-                distributed=copy.deepcopy(dst._distributed),
+-                token_per_repo_id=dst._token_per_repo_id,
+-            )
++            # Prefer the public API for sharding streaming datasets to avoid relying on private internals.
++            return dst.shard(num_shards=world_size, index=rank, contiguous=False)
+         else:
+             # If we have just a single shard/file, we shard inter-file
+-            return split_dataset_by_node(dst, rank, world_size)
++            return split_dataset_by_node(dataset=dst, rank=rank, world_size=world_size)
+ 
+     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+-        from datasets import load_dataset  # type: ignore
++        from datasets import load_dataset, load_from_disk  # type: ignore
+ 
+         if data:
+             yield from data
+-        ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
++        if self.load_from_disk:
++            ds = load_from_disk(self.dataset)
++        else:
++            ds = load_dataset(self.dataset, **self.dataset_options, streaming=self.streaming)
+ 
+         if self.shuffle_files:
+             if not self.streaming:
+@@ -130,4 +132,4 @@ class HuggingFaceDatasetReader(BaseReader):
+                         self.stat_update("documents")
+                         li += 1
+                         pbar.update()
+-                yield from documents
++                yield from documents
+\ No newline at end of file

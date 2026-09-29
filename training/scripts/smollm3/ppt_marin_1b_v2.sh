@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Configs / caches
+export TRANSFORMERS_VERBOSITY=debug
+export HF_HOME="/path/to/cache"
+export HF_HUB_CACHE="/path/to/cache"
+export HF_DATASETS_CACHE="/path/to/cache"
+export HF_DATASETS_TRUST_REMOTE_CODE=true
+export REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+export TMPDIR=/tmp
+export NCCL_DEBUG=INFO
+
+
+
+# Data safety: replace any out-of-vocab token ids instead of triggering a CUDA device-side assert.
+export SANITIZE_OOV=1
+export OOV_REPLACEMENT_ID=0
+export OOV_LOG_LIMIT=5
+nnodes=${SLURM_NNODES:-1}
+node_rank=${SLURM_NODEID:-${SLURM_PROCID:-0}}
+master_port=${MASTER_PORT:-12410}
+master_addr=${MASTER_ADDR:-${SLURM_LAUNCH_NODE_IPADDR:-127.0.0.1}}
+gpus_per_node_raw=${SLURM_GPUS_ON_NODE:-${SLURM_GPUS_PER_NODE:-}}
+if [[ -n "${gpus_per_node_raw}" ]]; then
+    nproc_per_node=$(echo "${gpus_per_node_raw}" | grep -oE '[0-9]+' | head -n 1)
+fi
+if [[ -z "${nproc_per_node:-}" ]]; then
+    nproc_per_node=$(nvidia-smi -L | wc -l)
+fi
+echo "Distributed config: nnodes=${nnodes}, node_rank=${node_rank}, nproc_per_node=${nproc_per_node}, master_addr=${master_addr}, master_port=${master_port}"
+
+# Ensure processes on this node and the library agree about how many local ranks there are
+export LOCAL_WORLD_SIZE="${nproc_per_node}"
+echo "LOCAL_WORLD_SIZE=${LOCAL_WORLD_SIZE}"
+
+# Match OpenMP threads to the physical cores available per process.
+physical_cores=$(python - <<'PY'
+import psutil
+
+count = psutil.cpu_count(logical=False)
+if count is None:
+    count = psutil.cpu_count(logical=True) or 1
+print(count)
+PY
+)
+omp_num_threads=$(( physical_cores / nproc_per_node ))
+if (( omp_num_threads < 1 )); then
+    omp_num_threads=1
+fi
+export OMP_NUM_THREADS="${omp_num_threads}"
+echo "OMP_NUM_THREADS=${OMP_NUM_THREADS} (physical_cores=${physical_cores}, nproc_per_node=${nproc_per_node})"
+
+# Activate env
+source /path/to/venv/verify-ppt_training/bin/activate
+
+# Change to the directory containing the training script
+cd /path/to/verify-ppt/external/nanotron
+
+# Run the training script
+python -m torch.distributed.run \
+    --nnodes="${nnodes}" \
+    --nproc_per_node="${nproc_per_node}" \
+    --rdzv_id="${SLURM_JOB_ID}" \
+    --rdzv_backend=c10d \
+    --rdzv_endpoint="${master_addr}:${master_port}" \
+    run_train.py --config-file /path/to/verify-ppt/training/configs/ppt_marin_1b_v2.yaml
