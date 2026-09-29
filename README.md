@@ -30,7 +30,7 @@ We also provide the pre-processed datasets and the trained models on Hugging Fac
     * As noted in the Appendix of the paper, a single 3B standard PT run requires 2 days and 23 hours (approximately 1,136 GPU hours) on 16 A100 40GB GPUs.
 * Slurm is assumed for job scheduling (Non-Slurm setups are not supported in this repo. Sorry!).
 * Recommended environment: vLLM NGC container with Singularity/Apptainer. We do not provide support for non-Singularity/Apptainer setups. You can use Docker instead of Singularity/Apptainer, but please note that we do not provide support for Docker setups either.
-* AWS credentials for preprocessing data stored on S3 (e.g., https://huggingface.co/datasets/bigcode/the-stack-v2).
+* AWS credentials for preprocessing data stored on S3 (e.g., https://huggingface.co/datasets/bigcode/the-stack-v2) if you want to preprocess data yourself. Otherwise, you can use the preprocessed datasets provided by us on Hugging Face Hub.
 
 > [!Important]  
 > In the following, you will see the following placeholder or example paths. Please modify them to the actual paths on your system before running the commands.
