@@ -6,3 +6,6 @@
 	path = external/datatrove
 	url = https://github.com/huggingface/datatrove.git
 	branch = nouamane/avoid-s3
+[submodule "external/verbatim-memory-in-NLMs"]
+	path = external/verbatim-memory-in-NLMs
+	url = https://github.com/KristijanArmeni/verbatim-memory-in-NLMs.git
