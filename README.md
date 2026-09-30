@@ -563,8 +563,7 @@ The artifacts for the models are available on Hugging Face. You can find the lin
 | - | Marin | [verify-ppt/marin_3b_re](https://huggingface.co/verify-ppt/marin_3b_re) |
 | - | Marin (Seed 2) | [verify-ppt/marin_3b_seed2](https://huggingface.co/verify-ppt/marin_3b_seed2) |
 | - | Marin (Seed 3) | [verify-ppt/marin_3b_seed3](https://huggingface.co/verify-ppt/marin_3b_seed3) |
-| k-Shuffle Dyck | Marin |  [verify-ppt/ppt_marin_3b_v2](https://huggingface.co/verify-ppt/ppt_marin_3b_v2) |
-| k-Shuffle Dyck (Re: Isambard) | Marin |  [verify-ppt/ppt_marin_3b_v2_re](https://huggingface.co/verify-ppt/ppt_marin_3b_v2_re) |
+| k-Shuffle Dyck | Marin |  [verify-ppt/ppt_marin_3b_v2_re](https://huggingface.co/verify-ppt/ppt_marin_3b_v2_re) |
 | k-Shuffle Dyck (Seed 2) | Marin (Seed 2) | [verify-ppt/ppt_marin_3b_v2_seed2](https://huggingface.co/verify-ppt/ppt_marin_3b_v2_seed2) |
 | k-Shuffle Dyck (Seed 3) | Marin (Seed 3) | [verify-ppt/ppt_marin_3b_v2_seed3](https://huggingface.co/verify-ppt/ppt_marin_3b_v2_seed3) |
 | Control (Marin) | Marin | [verify-ppt/ppt-marin_marin_3b_re](https://huggingface.co/verify-ppt/ppt-marin_marin_3b_re) |
