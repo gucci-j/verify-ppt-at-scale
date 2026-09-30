@@ -1,6 +1,3 @@
-[submodule "external/smollm"]
-	path = external/smollm
-	url = https://github.com/huggingface/smollm.git
 [submodule "external/nanotron"]
 	path = external/nanotron
 	url = https://github.com/huggingface/nanotron.git
@@ -9,12 +6,3 @@
 	path = external/datatrove
 	url = https://github.com/huggingface/datatrove.git
 	branch = nouamane/avoid-s3
-[submodule "external/verbatim-memory-in-NLMs"]
-	path = external/verbatim-memory-in-NLMs
-	url = https://github.com/KristijanArmeni/verbatim-memory-in-NLMs.git
-[submodule "external/LAD-PPT"]
-	path = external/LAD-PPT
-	url = https://github.com/osekilab/LAD-PPT.git
-[submodule "external/nca-pre-pretraining"]
-	path = external/nca-pre-pretraining
-	url = https://github.com/danihyunlee/nca-pre-pretraining.git
