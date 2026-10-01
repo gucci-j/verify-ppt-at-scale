@@ -1,7 +1,7 @@
 Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior
 ===
 
-This repository contains the code for the paper "Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior".
+This repository contains the code for the paper ["Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior"](https://arxiv.org/abs/2609.39827).
 
 We also provide the pre-processed datasets and the trained models on Hugging Face Hub. Please refer to the ["Pre-processing"](#2-pre-processing) and ["Artifacts"](#artifacts) sections below for more details.
 
