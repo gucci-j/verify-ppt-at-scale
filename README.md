@@ -604,7 +604,17 @@ For links to our pre-processed datasets, please refer to the [If you want to use
 If you find this repository useful for your research, please consider citing the following paper:
 
 ```
-TBA
+@article{yamaguchi2026syntheticprepretrainingsurvivesscale,
+      title={Synthetic Pre-pretraining Survives Scale, but Not as a Grammatical Prior}, 
+      author={Atsuki Yamaguchi and Tatsuro Inaba and Joel Niklaus and Michal Štefánik and Aline Villavicencio and Nikolaos Aletras},
+      year={2026},
+      eprint={2609.39827},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2609.39827},
+      journal={arXiv preprint},
+      volume={arXiv:2609.39827}
+}
 ```
 
 ## License
